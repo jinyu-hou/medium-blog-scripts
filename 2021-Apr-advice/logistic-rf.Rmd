@@ -1,0 +1,137 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+library(knitr)
+library(kableExtra)
+library(xtable)
+library(tidyverse)
+```
+```{r}
+# install.packages(c("devtools"))
+# devtools::install_github("ldurazo/kaggler")
+library(readr)
+library(kaggler)
+kgl_auth(creds_file = '~/.kaggle/kaggle.json')
+response <- kgl_datasets_download_all(owner_dataset = "abisheksudarshan/customer-segmentation")
+download.file(response[["url"]], "data/temp.zip", mode="wb")
+unzip_result <- unzip("data/temp.zip", exdir = "data/", overwrite = TRUE)
+data <- read_csv("data/train.csv")
+data
+```
+
+
+
+```{r}
+require(foreign)
+require(nnet)
+require(ggplot2)
+require(reshape2)
+```
+```{r}
+data <- data[complete.cases(data),]
+data[sapply(data, is.character)] <- lapply(data[sapply(data, is.character)], as.factor)
+glimpse(data)
+```
+
+```{r}
+set.seed(303)
+train_ind <- sample(seq_len(nrow(data)), size = nrow(data)*0.9)
+train <- data[train_ind, ]
+test <- data[-train_ind, ]
+train
+test
+```
+
+
+```{r}
+ml <- read.dta("https://stats.idre.ucla.edu/stat/data/hsbdemo.dta")
+glimpse(ml)
+```
+
+```{r}
+require(foreign)
+require(nnet)
+require(ggplot2)
+require(reshape2)
+logistic <- multinom(Segmentation ~ ., data = train)
+summary(logistic)
+```
+
+```{r}
+exp(coef(summary(logistic)))
+```
+```{r}
+logisticPred <- predict(logistic, type="probs", newdata=test)
+```
+
+```{r}
+segmentationsLabel <- c("A", "B", "C", "D")
+logisticPred <- segmentationsLabel[max.col(logisticPred)]
+logisticPred <- as.factor(logisticPred)
+# logisticPred[sapply(logisticPred, is.character)] <- lapply(logisticPred[sapply(testPred, is.character)], as.factor)
+logisticPred
+```
+
+```{r}
+library(caret)
+confusionMatrix(logisticPred, test$Segmentation)
+```
+
+```{r}
+tt <- broom::tidy(logistic,conf.int=TRUE)
+tt <- dplyr::filter(tt, term!="(Intercept)")
+tt
+```
+
+```{r}
+require(ggstance)
+ggplot(tt, aes(x=estimate,y=term,colour=y.level))+
+  geom_pointrangeh(aes(xmin=conf.low,
+                     xmax=conf.high),
+    position=position_dodgev(height=0.75))
+```
+
+```{r}
+glimpse(train)
+```
+
+```{r, eval=FALSE}
+library(randomForest)
+rf <- randomForest(Segmentation ~. , data=train)
+```
+
+
+```{r, eval=FALSE}
+library(randomForestExplainer)
+min_depth_frame <- min_depth_distribution(rf)
+plot_min_depth_distribution(min_depth_frame)
+```
+
+```{r}
+predictRf <- predict(rf, test, type = "class")
+confusionMatrix(predictRf, test$Segmentation)
+```
+
+
+```{r}
+# install.packages("nnet")
+library(nnet)
+target <-class.ind(train$Segmentation)
+nn = nnet(train, target, size=6, maxit = 200, softmax=TRUE)
+predict(nn, data=test, type = "class")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
